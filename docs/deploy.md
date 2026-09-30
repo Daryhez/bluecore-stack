@@ -22,11 +22,16 @@ Change these to strong, unique values.
 
 ---
 
-## 🗄️ Database (external Postgres)
+## 🗄️ Database (Postgres)
 
-Production runs against an **external** Postgres (the `compose.yaml` stack has no `postgres` service). `compose.yaml` 
-builds **every** service's DB connection -> bc_api, all Airflow services, and Keycloak — from these four variables, which
-default to `airflow` / `airflow` / `postgres` / `5432` when unset. **Add them to `.env`:**
+`compose.yaml` runs its own `postgres` service (data in the `postgres-db-volume` volume, port not published on the host).
+On first start it creates the `airflow`, `keycloak` and `bluecore` databases via `scripts/init-multi-postgres-dbs.sh`.
+`compose.yaml` builds **every** service's DB connection -> bc_api, all Airflow services, and Keycloak — from these four
+variables, which default to `airflow` / `airflow` / `postgres` / `5432` when unset. **Add them to `.env`:**
+
+> ⚠️ Set `DATABASE_USERNAME` / `DATABASE_PASSWORD` **before the first start** — Postgres only creates the user and
+> databases on an empty volume. Keep `DATABASE_HOSTNAME=postgres` to use the bundled service, or point it at an
+> external host (the bundled container still starts but goes unused).
 
 > Both compose files build **every** DB connection from the four vars below:
 
