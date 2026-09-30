@@ -2,6 +2,25 @@ include:
   - compose-base.yaml
 
 services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: ${DATABASE_USERNAME:-airflow}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD:-airflow}
+      POSTGRES_MULTIPLE_DB: airflow, keycloak, bluecore
+    # No published port: only the stack's containers can reach it.
+    expose:
+      - 5432
+    volumes:
+      - postgres-db-volume:/var/lib/postgresql/data
+      - ./scripts/init-multi-postgres-dbs.sh:/docker-entrypoint-initdb.d/init-multi-postgres-dbs.sh
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "${DATABASE_USERNAME:-airflow}"]
+      interval: 10s
+      retries: 5
+      start_period: 5s
+    restart: always
+
   keycloak:
     image: ${KEYCLOAK_IMAGE:-quay.io/keycloak/keycloak:26.1.2}
     expose:
@@ -13,6 +32,10 @@ services:
       KC_DB_URL: jdbc:postgresql://${DATABASE_HOSTNAME:-postgres}:${DATABASE_PORT:-5432}/keycloak
       KC_DB_USERNAME: ${DATABASE_USERNAME:-airflow}
       KC_DB_PASSWORD: ${DATABASE_PASSWORD:-airflow}
+      KC_DB: postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
     healthcheck:
       test: [ "CMD-SHELL", "exec 3<> /dev/tcp/127.0.0.1/9000; echo -e 'GET /health/ready HTTP/1.1\\r\\nhost: http://localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3; if [ $? -eq 0 ]; then echo 'Healthcheck Successful'; exit 0; else echo 'Healthcheck Failed'; exit 1; fi;" ]
       interval: 10s
@@ -51,10 +74,16 @@ services:
       # Outside conf.d/ on purpose: base.conf includes it from inside its
       # server block, and conf.d/*.conf is loaded at http context.
       - ./nginx/site-body.conf:/etc/nginx/site-body.conf
-      - ./nginx/server.conf:/etc/nginx/templates/env/server.conf.template
+      # The main server block. Unset means HTTPS on ${HOSTNAME} (server.conf).
+      # Set NGINX_SERVER_CONF=local.conf to serve plain HTTP on port 80, e.g. to
+      # test a host by IP before its domain and certificate exist.
+      - ./nginx/${NGINX_SERVER_CONF:-server.conf}:/etc/nginx/templates/env/server.conf.template
       # Extra server blocks, selected per host in .env. Unset means the
       # comment-only placeholder, i.e. a single domain (production).
       # Set NGINX_EXTRA_SERVERS=server-alt.conf for a second cert pair.
       - ./nginx/${NGINX_EXTRA_SERVERS:-no-extra-servers.conf}:/etc/nginx/templates/env/extra/extra.conf.template
       - ./nginx:/var/www/html
     restart: always
+
+volumes:
+  postgres-db-volume:
