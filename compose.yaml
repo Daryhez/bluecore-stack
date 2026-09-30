@@ -75,8 +75,9 @@ services:
       # server block, and conf.d/*.conf is loaded at http context.
       - ./nginx/site-body.conf:/etc/nginx/site-body.conf
       # The main server block. Unset means HTTPS on ${HOSTNAME} (server.conf).
-      # Set NGINX_SERVER_CONF=local.conf to serve plain HTTP on port 80, e.g. to
-      # test a host by IP before its domain and certificate exist.
+      # Set NGINX_SERVER_CONF=ip-test.conf (with HOSTNAME=<ip>) to serve plain
+      # HTTP on port 80, e.g. to test a host by IP before its domain and
+      # certificate exist.
       - ./nginx/${NGINX_SERVER_CONF:-server.conf}:/etc/nginx/templates/env/server.conf.template
       # Extra server blocks, selected per host in .env. Unset means the
       # comment-only placeholder, i.e. a single domain (production).
